@@ -159,24 +159,32 @@ impl Game {
     ///
     /// (optional) Don't forget to include en passent and castling.
     pub fn get_possible_moves(&self, _postion: &str) -> Option<Vec<String>> {
-        //
+
+
         None
+    }
+
+    // TODO: Convert e.g. E4 to 4, 4
+    fn strpos_to_pos (_postion: &str) -> (u8, u8) {
+        let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
+        (0,0)
     }
 }
 
 /// Implement print routine for Game.
 ///
 /// Output example:
-/// |:----------------------:|
-/// | R  Kn B  K  Q  B  Kn R |
-/// | P  P  P  P  P  P  P  P |
-/// | *  *  *  *  *  *  *  * |
-/// | *  *  *  *  *  *  *  * |
-/// | *  *  *  *  *  *  *  * |
-/// | *  *  *  *  *  *  *  * |
-/// | P  P  P  P  P  P  P  P |
-/// | R  Kn B  K  Q  B  Kn R |
-/// |:----------------------:|
+/// |    0  1  2  3  4  5  6  7    |
+/// | 0  R  Kn B  Q  K  B  Kn R  8 |
+/// | 1  P  P  P  P  P  P  P  P  7 |
+/// | 2  *  *  *  *  *  *  *  *  6 |
+/// | 3  *  *  *  *  *  *  *  *  5 |
+/// | 4  *  *  *  *  *  *  *  *  4 |
+/// | 5  *  *  *  *  *  *  *  *  3 |
+/// | 6  P  P  P  P  P  P  P  P  2 |
+/// | 7  R  Kn B  Q  K  B  Kn R  1 |
+/// |    A  B  C  D  E  F  G  H
 impl fmt::Debug for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /* build board representation string */
