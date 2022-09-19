@@ -1,5 +1,6 @@
-use std::fmt;
+use std::fmt::Display;
 use std::marker::Copy;
+use std::{char, fmt, u64};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -7,20 +8,52 @@ pub enum GameState {
     Check,
     GameOver,
 }
-
-enum Colour {
+#[derive(Debug, Copy, Clone)]
+enum Color {
     White = 0,
     Black = 1,
+    Empty = 2,
 }
 
-enum Piece {
+#[derive(Debug, Copy, Clone)]
+enum Role {
     King = 0,
     Queen = 1,
     Bishop = 2,
     Knight = 3,
     Rook = 4,
     Pawn = 5,
-    Empty = 99
+    Empty = 9,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Piece {
+    role: Role,
+    color: Color,
+}
+
+impl Piece {
+    fn new(role: Role, color: Color) -> Piece {
+        Piece {
+            role: role,
+            color: color,
+        }
+    }
+
+    fn no_piece() -> Piece {
+        Piece {
+            role: Role::Empty,
+            color: Color::Empty,
+        }
+    }
+
+    fn get_role(&self) -> Role {
+        self.role
+    }
+
+    fn get_color(&self) -> Color {
+        self.color
+    }
 }
 /* IMPORTANT:
  * - Document well!
@@ -30,16 +63,70 @@ enum Piece {
 pub struct Game {
     /* save board, active colour, ... */
     state: GameState,
-    board: [u64; 64], //...
+    board: [[Piece; 8]; 8],
+    //...
 }
 
 impl Game {
     /// Initialises a new board with pieces.
     pub fn new() -> Game {
+        let new_board: [[Piece; 8]; 8] = init_board();
+
+        fn init_board() -> [[Piece; 8]; 8] {
+            let mut map: [[Piece; 8]; 8] = [[Piece::no_piece(); 8]; 8];
+
+            for y in 0..map.len() {
+                for x in 0..map[y].len() {
+                    if y == 0 {
+                        if x == 0 || x == 7 {
+                            map[x][y] = Piece::new(Role::Rook, Color::Black);
+                        } else if x == 1 || x == 6 {
+                            map[x][y] = Piece::new(Role::Knight, Color::Black);
+                        } else if x == 2 || x == 5 {
+                            map[x][y] = Piece::new(Role::Bishop, Color::Black);
+                        } else if x == 3 {
+                            map[x][y] = Piece::new(Role::Queen, Color::Black);
+                        } else {
+                            map[x][y] = Piece::new(Role::King, Color::Black);
+                        }
+                    } else if y == 1 {
+                        map[x][y] = Piece::new(Role::Pawn, Color::Black);
+                    } else if y == 6 {
+                        map[x][y] = Piece::new(Role::Pawn, Color::White);
+                    } else if y == 7 {
+                        if x == 0 || x == 7 {
+                            map[x][y] = Piece::new(Role::Rook, Color::White);
+                        } else if x == 1 || x == 6 {
+                            map[x][y] = Piece::new(Role::Knight, Color::White);
+                        } else if x == 2 || x == 5 {
+                            map[x][y] = Piece::new(Role::Bishop, Color::White);
+                        } else if x == 3 {
+                            map[x][y] = Piece::new(Role::Queen, Color::White);
+                        } else {
+                            map[x][y] = Piece::new(Role::King, Color::White);
+                        }
+                    }
+                }
+            }
+
+            print_board(map);
+            map
+        }
+
+        fn print_board(map: [[Piece; 8]; 8]) {
+            print!("\n");
+            for y in 0..map.len() {
+                for x in 0..map[y].len() {
+                    print!("{}{} ", map[x][y].get_role() as u8, map[x][y].get_color() as u8);
+                }
+                print!("\n");
+            }
+        }
+
         Game {
             /* initialise board, set active colour to white, ... */
             state: GameState::InProgress,
-            board: [99; 64]
+            board: new_board,
             //...
         }
     }
@@ -72,6 +159,7 @@ impl Game {
     ///
     /// (optional) Don't forget to include en passent and castling.
     pub fn get_possible_moves(&self, _postion: &str) -> Option<Vec<String>> {
+        //
         None
     }
 }
