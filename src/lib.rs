@@ -77,8 +77,9 @@ impl Game {
                         _ => print!("ERROR"),
                     }
 
+                    
+                    board[(8 * y + x) as usize] = p;
                     x += 1;
-                    board[(8 * y + x -1) as usize] = p;
                     p = 0;
                 }
             }
