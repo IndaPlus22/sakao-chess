@@ -8,53 +8,19 @@ pub enum GameState {
     Check,
     GameOver,
 }
-#[derive(Debug, Copy, Clone)]
-enum Color {
-    White = 0,
-    Black = 1,
-    Empty = 2,
-}
 
-#[derive(Debug, Copy, Clone)]
-enum Role {
-    King = 0,
-    Queen = 1,
-    Bishop = 2,
-    Knight = 3,
-    Rook = 4,
-    Pawn = 5,
-    Empty = 9,
-}
+// const for pieces and not enums
+pub const NONE: u16 = 0;
+pub const KING: u16 = 1;
+pub const QUEEN: u16 = 2;
+pub const BISHOP: u16 = 3;
+pub const KNIGHT: u16 = 4;
+pub const ROOK: u16 = 5;
+pub const PAWN: u16 = 6;
 
-#[derive(Debug, Copy, Clone)]
-struct Piece {
-    role: Role,
-    color: Color,
-}
+pub const WHITE: u16 = 8;
+pub const BLACK: u16 = 16;
 
-impl Piece {
-    fn new(role: Role, color: Color) -> Piece {
-        Piece {
-            role: role,
-            color: color,
-        }
-    }
-
-    fn no_piece() -> Piece {
-        Piece {
-            role: Role::Empty,
-            color: Color::Empty,
-        }
-    }
-
-    fn get_role(&self) -> Role {
-        self.role
-    }
-
-    fn get_color(&self) -> Color {
-        self.color
-    }
-}
 /* IMPORTANT:
  * - Document well!
  * - Write well structured and clean code!
@@ -63,64 +29,84 @@ impl Piece {
 pub struct Game {
     /* save board, active colour, ... */
     state: GameState,
-    board: [[Piece; 8]; 8],
+    board: [u16; 64],
     //...
 }
 
 impl Game {
     /// Initialises a new board with pieces.
     pub fn new() -> Game {
-        let new_board: [[Piece; 8]; 8] = init_board();
+        let new_board: [u16; 64] = init_board();
 
-        fn init_board() -> [[Piece; 8]; 8] {
-            let mut map: [[Piece; 8]; 8] = [[Piece::no_piece(); 8]; 8];
+        fn init_board() -> [u16; 64] {
+            let mut board: [u16; 64] = load_fen_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+            
 
-            for y in 0..map.len() {
-                for x in 0..map[y].len() {
-                    if y == 0 {
-                        if x == 0 || x == 7 {
-                            map[x][y] = Piece::new(Role::Rook, Color::Black);
-                        } else if x == 1 || x == 6 {
-                            map[x][y] = Piece::new(Role::Knight, Color::Black);
-                        } else if x == 2 || x == 5 {
-                            map[x][y] = Piece::new(Role::Bishop, Color::Black);
-                        } else if x == 3 {
-                            map[x][y] = Piece::new(Role::Queen, Color::Black);
-                        } else {
-                            map[x][y] = Piece::new(Role::King, Color::Black);
-                        }
-                    } else if y == 1 {
-                        map[x][y] = Piece::new(Role::Pawn, Color::Black);
-                    } else if y == 6 {
-                        map[x][y] = Piece::new(Role::Pawn, Color::White);
-                    } else if y == 7 {
-                        if x == 0 || x == 7 {
-                            map[x][y] = Piece::new(Role::Rook, Color::White);
-                        } else if x == 1 || x == 6 {
-                            map[x][y] = Piece::new(Role::Knight, Color::White);
-                        } else if x == 2 || x == 5 {
-                            map[x][y] = Piece::new(Role::Bishop, Color::White);
-                        } else if x == 3 {
-                            map[x][y] = Piece::new(Role::Queen, Color::White);
-                        } else {
-                            map[x][y] = Piece::new(Role::King, Color::White);
-                        }
+            print_board(board);
+            board
+        }
+
+        fn load_fen_board(fen: &str) -> [u16; 64] {
+            let mut board: [u16; 64] = [0; 64];
+
+            let mut x: u16 = 0;
+            let mut y: u16 = 7;
+            let mut p: u16 = 0;
+
+            for item in fen.chars() {
+                if item == '/' {
+                    y -= 1;
+                    x = 0;
+                } else if item.is_numeric() {
+                    x += item.to_digit(10).unwrap() as u16;
+                } else {
+                    if item.is_uppercase() {
+                        p += BLACK;
+                    } else {
+                        p += WHITE;
                     }
+
+                    let role_string = item.to_lowercase().to_string();
+                    match role_string.as_str() {
+                        "k" => p += KING,
+                        "q" => p += QUEEN,
+                        "b" => p += BISHOP,
+                        "n" => p += KNIGHT,
+                        "r" => p += ROOK,
+                        "p" => p += PAWN,
+                        _ => print!("ERROR"),
+                    }
+
+                    x += 1;
+                    board[(8 * y + x -1) as usize] = p;
+                    p = 0;
                 }
             }
 
-            print_board(map);
-            map
+            board
         }
 
-        fn print_board(map: [[Piece; 8]; 8]) {
+        fn print_board(board: [u16; 64]) {
             print!("\n");
-            for y in 0..map.len() {
-                for x in 0..map[y].len() {
-                    print!("{}{} ", map[x][y].get_role() as u8, map[x][y].get_color() as u8);
+            for y in 0..8 {
+                for x in 0..8 {
+                    print!(
+                        "{},{} ",
+                        get_role(board[y * 8 + x]),
+                        get_color(board[y * 8 + x])
+                    );
                 }
                 print!("\n");
             }
+        }
+
+        // dont understand much here with masking bytes from https://github.com/SebLague/Chess-AI/blob/main/Assets/Scripts/Core/Piece.cs
+        fn get_role(piece: u16) -> u16 {
+            piece & 0b00111 // typemask, takes away the two first bytes(which represents the color)
+        }
+
+        fn get_color(piece: u16) -> u16 {
+            piece & (0b01000 | 0b10000) // colormask
         }
 
         Game {
@@ -159,16 +145,14 @@ impl Game {
     ///
     /// (optional) Don't forget to include en passent and castling.
     pub fn get_possible_moves(&self, _postion: &str) -> Option<Vec<String>> {
-
-
         None
     }
 
     // TODO: Convert e.g. E4 to 4, 4
-    fn strpos_to_pos (_postion: &str) -> (u8, u8) {
+    fn strpos_to_pos(_postion: &str) -> (u8, u8) {
         let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
-        (0,0)
+        (0, 0)
     }
 }
 
