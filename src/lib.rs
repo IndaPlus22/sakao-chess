@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::marker::Copy;
-use std::{char, fmt, u64, u16};
+use std::{char, fmt, string, u16, u64};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -36,7 +36,6 @@ pub struct Game {
 impl Game {
     /// Initialises a new board with pieces.
     pub fn new() -> Game {
-
         Game {
             /* initialise board, set active colour to white, ... */
             state: GameState::InProgress,
@@ -44,10 +43,10 @@ impl Game {
             //...
         }
     }
-    
+
     /// If the current game state is `InProgress` and the move is legal,
     /// move a piece and return the resulting state of the game.
-    /// TODO: this
+    /// TODO: after generating the moves
     pub fn make_move(&mut self, _from: &str, _to: &str) -> Option<GameState> {
         if self.state != GameState::InProgress {
             None
@@ -58,14 +57,21 @@ impl Game {
             Some(GameState::InProgress)
         }
     }
-    
+
     /// Set the piece type that a pawn becames following a promotion.
     /// TODO: just minus 6(pawn value) right now and then add the new piece value(for queen 2)
     pub fn set_promotion(&mut self, _piece: &str) -> () {
-        ()
+        // let piece_int: u16 = self::Game::piece_str_to_int(_piece);
     }
 
     /// Get the current game state.
+    /**
+     * hello
+     * #### HELLO
+     * ok
+     *
+     * haha
+     */
     pub fn get_game_state(&self) -> GameState {
         self.state
     }
@@ -79,15 +85,46 @@ impl Game {
         None
     }
 
+    fn get_pawn_moves(&self, _position: &str) -> Option<Vec<u16>> {
+        // if string is not a valid position return None
+        if _position.len() != 2 {
+            return None;
+        } else {
+            let pos_int: u16 = Self::pos_str_to_int(_position) as u16;
+            let color: u16 = Self::get_color(self.board[pos_int as usize]);
+
+            let mut moves: Vec<u16> = Vec::new();
+            if color == WHITE {
+                moves.push(pos_int - 8); // go upp one step
+                if pos_int % 8 == 6 {
+                    // has not moved yet as white
+                    moves.push(pos_int - (8 * 2));
+                }
+            } else {
+                moves.push(pos_int + 8); // go down one step
+                if pos_int % 8 == 1 {
+                    // has not moved yet as black
+                    moves.push(pos_int + (8 * 2));
+                }
+            }
+
+            return Some(moves);
+        }
+    }
+
     // initializes the first board
     fn init_board() -> [u16; 64] {
         let board: [u16; 64] = Self::load_fen_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         //DEBUG
         Self::print_board(board);
-        
-        print!("{}", Self::piece_int_to_str(board[Self::strpos_to_pos("E1")]));
+
+        print!(
+            "{}",
+            Self::piece_int_to_str(board[Self::pos_str_to_int("E1")])
+        );
         //ok
+
         board
     }
 
@@ -134,34 +171,70 @@ impl Game {
 
     //prints board only for debug
     fn print_board(board: [u16; 64]) {
+        let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
         print!("\n");
         for y in 0..8 {
+            print!("{} | ", 8 - y);
             for x in 0..8 {
-                print!(
-                    "{}  ",
-                    Self::piece_int_to_str(board[y * 8 + x]),
-                );
+                print!("{}  ", Self::piece_int_to_str(board[y * 8 + x]),);
             }
             print!("\n");
         }
+        println!("    ----------------------");
+        print!("    ");
+        for i in 0..8 {
+            print!("{}  ", rows[i]);
+        }
+        print!("\n");
     }
 
     // dont understand much here with masking bytes from https://github.com/SebLague/Chess-AI/blob/main/Assets/Scripts/Core/Piece.cs
     // gets role by masking
     fn get_role(piece: u16) -> u16 {
         piece & 0b00111 // typemask, takes away the two first bytes(which represents the color)
+                        //      e.g.
+                        //      0b01001 white king
+                        //      0b00111 mask
+                        //    & 0b00001 king with no color
     }
 
-    // gets color by masking 
+    // gets color by masking
     fn get_color(piece: u16) -> u16 {
-        piece & (0b01000 | 0b10000) // colormask
+        piece & 0b11000 // colormask
     }
     //----------------------------------------------------------------
+
+    // converts position to index in array dont know if needed.
+    fn piece_str_to_int(piece: &str) -> u16 {
+        let mut p: u16 = 0;
+
+        if piece.chars().nth(0).unwrap().is_uppercase() {
+            p += BLACK;
+        } else {
+            p += WHITE;
+        }
+
+        let role_string = piece.to_lowercase().to_string();
+        match role_string.as_str() {
+            "k" => p += KING,
+            "q" => p += QUEEN,
+            "b" => p += BISHOP,
+            "n" => p += KNIGHT,
+            "r" => p += ROOK,
+            "p" => p += PAWN,
+            _ => print!("ERROR"),
+        }
+
+        p
+    }
 
     // converts piece to which role and which color in char, lowercase is white and upper is black
     fn piece_int_to_str(piece: u16) -> char {
         if Self::get_color(piece) == BLACK {
-            return Self::role_int_to_str(piece).to_uppercase().collect::<Vec<char>>()[0];
+            return Self::role_int_to_str(piece)
+                .to_uppercase()
+                .collect::<Vec<char>>()[0];
         }
         Self::role_int_to_str(piece)
     }
@@ -169,25 +242,38 @@ impl Game {
     // converts piece to which role it has in char
     fn role_int_to_str(piece: u16) -> char {
         match Self::get_role(piece) {
-            KING =>   'k',
-            QUEEN =>  'q',
+            KING => 'k',
+            QUEEN => 'q',
             BISHOP => 'b',
             KNIGHT => 'n',
-            ROOK =>   'r',
-            PAWN =>   'p',
-            _ => '.'
+            ROOK => 'r',
+            PAWN => 'p',
+            _ => '.',
         }
     }
 
-    // Converts int to file,rank e.g. E4 to (8 - 4) * 8 + E:(4) 
-    fn strpos_to_pos(_postion: &str) -> usize {
+    // Converts file,rank to int e.g. E4 to (8 - 4) * 8 + E:(4)
+    fn pos_str_to_int(_postion: &str) -> usize {
         let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
         let char_vec: Vec<char> = _postion.chars().collect();
-        let alph_index = rows.iter().position(|&r| r == char_vec[0].to_string()).unwrap();
-        
+        let alph_index = rows
+            .iter()
+            .position(|&r| r == char_vec[0].to_string())
+            .unwrap();
+
         ((8 - char_vec[1].to_digit(10).unwrap()) as usize) * 8 + alph_index
     }
 
+    // 7 becomes G1
+    fn pos_int_to_string(_position: usize) -> () {
+        // let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
+        // let mut owned_string: String = (_position / 8).to_string().to_owned();
+        // let borrowed_string: &str = rows[_position % 8];
+        // owned_string.push_str(borrowed_string);
+
+        // owned_string
+    }
 }
 
 /// Implement print routine for Game.
@@ -203,7 +289,7 @@ impl Game {
 /// | P  P  P  P  P  P  P  P  2 |
 /// | R  Kn B  Q  K  B  Kn R  1 |
 /// | A  B  C  D  E  F  G  H
-/// 
+///
 impl fmt::Debug for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /* build board representation string */
@@ -232,6 +318,19 @@ mod tests {
     #[test]
     fn game_in_progress_after_init() {
         let game = Game::new();
+
+        println!("\n-----------------------");
+
+        // let _fuck = Game::piece_int_to_str(game.board[(8 * 0) + 3]);
+        // print!("{}", _fuck);
+
+        let ok = Game::get_pawn_moves(&game, "E7").unwrap();
+        for i in ok {
+            print!("\n");
+            print!("a: {} ", i);
+        }
+
+        print!("\n");
 
         println!("{:?}", game);
 
