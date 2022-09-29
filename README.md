@@ -1,6 +1,8 @@
 # sakao-chess
 
 Everything works as you think (of course)
+joke btw
+not finished
 
 :(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
 
