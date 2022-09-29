@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::marker::Copy;
-use std::{char, fmt, string, u16, u64};
+use std::{char, fmt, string, u64, u8, vec};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -10,16 +10,16 @@ pub enum GameState {
 }
 
 // const for pieces and not enums
-pub const NONE: u16 = 0;
-pub const KING: u16 = 1;
-pub const QUEEN: u16 = 2;
-pub const BISHOP: u16 = 3;
-pub const KNIGHT: u16 = 4;
-pub const ROOK: u16 = 5;
-pub const PAWN: u16 = 6;
+pub const NONE: u8 = 0;
+pub const KING: u8 = 1;
+pub const QUEEN: u8 = 2;
+pub const BISHOP: u8 = 3;
+pub const KNIGHT: u8 = 4;
+pub const ROOK: u8 = 5;
+pub const PAWN: u8 = 6;
 
-pub const WHITE: u16 = 8;
-pub const BLACK: u16 = 16;
+pub const WHITE: u8 = 8;
+pub const BLACK: u8 = 16;
 
 /* IMPORTANT:
  * - Document well!
@@ -29,7 +29,7 @@ pub const BLACK: u16 = 16;
 pub struct Game {
     /* save board, active colour, ... */
     state: GameState,
-    board: [u16; 64],
+    board: [u8; 64],
     //...
 }
 
@@ -40,38 +40,42 @@ impl Game {
             /* initialise board, set active colour to white, ... */
             state: GameState::InProgress,
             board: Self::init_board(),
-            //...
         }
     }
 
     /// If the current game state is `InProgress` and the move is legal,
     /// move a piece and return the resulting state of the game.
-    /// TODO: after generating the moves
+    /// TODO: doesnt check chek
     pub fn make_move(&mut self, _from: &str, _to: &str) -> Option<GameState> {
         if self.state != GameState::InProgress {
-            None
+            None //TODO:
         } else {
             // check if move is possible
             // make the move
             // return gamestate
+            let tmp = self.get_possible_moves(_from);
+            if tmp.unwrap().contains(&_to.to_string()) {
+                self.board[Self::pos_str_to_int(_to)] = self.board[Self::pos_str_to_int(_from)];
+                self.board[Self::pos_str_to_int(_from)] = 0;
+            }
             Some(GameState::InProgress)
         }
     }
 
-    /// Set the piece type that a pawn becames following a promotion.
+    /// Set the piece type that a pawn becomes following a promotion.
     /// TODO: just minus 6(pawn value) right now and then add the new piece value(for queen 2)
     pub fn set_promotion(&mut self, _piece: &str) -> () {
-        // let piece_int: u16 = self::Game::piece_str_to_int(_piece);
+        let piece_int: u8 = self::Game::piece_str_to_int(_piece);
     }
 
     /// Get the current game state.
-    /**
-     * hello
-     * #### HELLO
-     * ok
-     *
-     * haha
-     */
+    ///
+    ///hello
+    ///# HELLO
+    ///ok
+    ///
+    ///haha
+    ///
     pub fn get_game_state(&self) -> GameState {
         self.state
     }
@@ -80,41 +84,252 @@ impl Game {
     /// new positions of that piece. Don't forget to the rules for check.
     ///
     /// (optional) Don't forget to include en passent and castling.
-    /// TODO: this
-    pub fn get_possible_moves(&self, _postion: &str) -> Option<Vec<String>> {
-        None
-    }
-
-    fn get_pawn_moves(&self, _position: &str) -> Option<Vec<u16>> {
-        // if string is not a valid position return None
+    pub fn get_possible_moves(&self, _position: &str) -> Option<Vec<String>> {
+        // not a valid pos return None
         if _position.len() != 2 {
             return None;
         } else {
-            let pos_int: u16 = Self::pos_str_to_int(_position) as u16;
-            let color: u16 = Self::get_color(self.board[pos_int as usize]);
+            let pos_int: u8 = Self::pos_str_to_int(_position) as u8;
+            let mut moves: Vec<u8> = self.get_possible_moves_int(pos_int);
 
-            let mut moves: Vec<u16> = Vec::new();
-            if color == WHITE {
-                moves.push(pos_int - 8); // go upp one step
-                if pos_int % 8 == 6 {
-                    // has not moved yet as white
-                    moves.push(pos_int - (8 * 2));
-                }
-            } else {
-                moves.push(pos_int + 8); // go down one step
-                if pos_int % 8 == 1 {
-                    // has not moved yet as black
-                    moves.push(pos_int + (8 * 2));
-                }
-            }
-
-            return Some(moves);
+            // Placement
+            let mut moves_string: Option<Vec<String>> = Some(self.posvec_int_to_string(moves));
+            return moves_string;
         }
     }
 
+    fn remove_checks(&self, _position: u8, attacked_poses: Vec<u8>) -> Vec<u8> {
+        let color: u8 = self.board[_position as usize];
+        let opposite_moves: Vec<u8> = self.get_moves_for_color(!color & 0b11000);
+
+        let moves = Vec::new();
+
+        moves
+    }
+
+    fn get_possible_moves_int(&self, _position: u8) -> Vec<u8> {
+        let role: u8 = Self::get_role(self.board[_position as usize]);
+
+        let mut moves: Vec<u8> = Vec::new();
+        match role {
+            PAWN => {
+                // can take but no en passant
+                moves = self.get_pawn_moves(_position);
+            }
+            KING => {
+                moves = self.get_king_moves(_position);
+            }
+            QUEEN => {
+                let mut a = self.get_diagonal_moves(_position);
+                let mut b = self.get_orthogonal_moves(_position);
+
+                a.append(&mut b);
+                moves = a;
+            }
+            ROOK => {
+                moves = self.get_orthogonal_moves(_position);
+            }
+            BISHOP => {
+                moves = self.get_diagonal_moves(_position);
+            }
+            KNIGHT => {
+                moves = self.get_knight_moves(_position);
+            }
+            _ => {}
+        }
+
+        moves
+    }
+
+    /// get all possiblemoves from the attacking side and check if there is a king on any of the moves
+    /// if there is a king with attacked color return true
+    /// else return false
+    /// TODO: redesign
+    fn check_if_checked(&self, _from: u8, _to: u8, attacking_moves: Vec<u8>) -> bool {
+        let attacked = Self::get_color(_from);
+        let attacking = attacked | 0b11000; // inverts color
+
+        for item in attacking_moves {
+            let mut clone = self.board.clone();
+            clone[_to as usize] = self.board[_from as usize];
+            clone[_from as usize] = 0;
+
+            let piece: u8 = clone[item as usize];
+            if Self::get_role(piece) == KING && Self::get_color(piece) == attacked {
+                // is checked
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn get_moves_for_color(&self, _color: u8) -> Vec<u8> {
+        let mut total_moves: Vec<u8> = Vec::new();
+        for i in 0..64 {
+            if Self::get_color(self.board[i]) == _color {
+                total_moves.append(&mut self.get_possible_moves_int(i as u8));
+            }
+        }
+
+        total_moves
+    }
+
+    fn posvec_int_to_string(&self, moves: Vec<u8>) -> Vec<String> {
+        let mut moves_string: Vec<String> = Vec::new();
+        for i in moves {
+            moves_string.push(Self::pos_int_to_string(i));
+        }
+
+        moves_string
+    }
+
+    // rokad :(
+    fn get_king_moves(&self, _position: u8) -> Vec<u8> {
+        let mut moves: Vec<u8> = Vec::new();
+        // filter all moves that make you checked
+        let color: u8 = Self::get_color(self.board[_position as usize]);
+
+        let direction: [i16; 8] = [-8, 1, 8, -1, -7, 9, 7, -9];
+
+        for i in 0..8 {
+            let destination = _position as i16 + direction[i];
+            if destination >= 0 && destination < 64 {
+                if Self::get_color(self.board[destination as usize]) != color
+                    // && self.check_if_checked(_position, destination, opposite_moves.clone()) == false
+                // fix the clone
+                {
+                    moves.push(destination as u8);
+                }
+            }
+        }
+        moves
+    }
+
+    fn get_knight_moves(&self, _position: u8) -> Vec<u8> {
+        let mut moves: Vec<u8> = Vec::new();
+
+        let direction: [i16; 8] = [-15, -6, 10, 17, 15, 6, -10, -17];
+
+        for i in 0..8 {
+            let destination = _position as i16 + direction[i];
+            if destination >= 0 && destination < 64 {
+                if Self::get_color(self.board[destination as usize])
+                    != Self::get_color(self.board[_position as usize])
+                {
+                    moves.push(destination as u8);
+                }
+            }
+        }
+
+        moves
+    }
+
+    //TODO: (if i want en passant)
+    fn get_pawn_moves(&self, _position: u8) -> Vec<u8> {
+        let mut moves: Vec<u8> = Vec::new();
+
+        let mut color_mult: i16 = 1;
+
+        if Self::get_color(self.board[_position as usize]) == WHITE {
+            color_mult = -1;
+        }
+
+        let sides: [i16; 2] = [9 * color_mult, 7 * color_mult];
+        for i in sides {
+            let next_pos = self.board[(_position as i16 + i) as usize];
+            if (Self::get_color(next_pos)) != Self::get_color(self.board[_position as usize]) {
+                moves.push((_position as i16 + i) as u8);
+            }
+        }
+        if self.board[(_position as i16 + 8 * color_mult) as usize] == 0 {
+            moves.push((_position as i16 + 8 * color_mult) as u8); // go upp/down one step
+
+            if _position / 8 == 6
+                && color_mult == -1
+                && self.board[(_position as i16 + 8 * color_mult * 2) as usize] == 0
+            {
+                // has not moved yet as white
+                moves.push(_position - (8 * 2));
+            } else if _position / 8 == 1
+                && self.board[(_position as i16 + 8 * color_mult * 2) as usize] == 0
+            {
+                // has not moved yet as black
+                moves.push(_position + (8 * 2));
+            }
+        }
+
+        moves
+    }
+
+    fn get_orthogonal_moves(&self, _position: u8) -> Vec<u8> {
+        let mut moves: Vec<u8> = Vec::new();
+
+        let direction: [i16; 4] = [-8, 1, 8, -1];
+        let count = [
+            _position / 8,
+            7 - (_position % 8),
+            7 - _position / 8,
+            _position % 8,
+        ];
+
+        for i in 0..4 {
+            for j in 1..(count[i] + 1) {
+                let tmp_pos = (_position as i16 + direction[i] * j as i16) as usize;
+                if self.board[tmp_pos] != 0 {
+                    // if there is a piece on the way
+                    if Self::get_color(self.board[tmp_pos])
+                        != Self::get_color(self.board[_position as usize])
+                    {
+                        // if it is enemy be able to take it
+                        moves.push(tmp_pos as u8);
+                    }
+                    break;
+                }
+                moves.push(tmp_pos as u8);
+            }
+        }
+
+        moves
+    }
+
+    fn get_diagonal_moves(&self, _position: u8) -> Vec<u8> {
+        let mut moves: Vec<u8> = Vec::new();
+
+        let direction: [i16; 4] = [-7, 9, 7, -9];
+        let count = [
+            std::cmp::min(_position / 8, 7 - _position % 8),
+            std::cmp::min(7 - _position / 8, 7 - _position % 8),
+            std::cmp::min(7 - _position / 8, _position % 8),
+            std::cmp::min(_position / 8, _position % 8),
+        ];
+
+        for i in 0..4 {
+            for j in 1..(count[i] + 1) {
+                let tmp_pos = (_position as i16 + direction[i] * j as i16) as usize;
+                if self.board[tmp_pos] != 0 {
+                    // if there is a piece on the way
+                    if Self::get_color(self.board[tmp_pos])
+                        != Self::get_color(self.board[_position as usize])
+                    {
+                        // if it is enemy be able to take it
+                        moves.push(tmp_pos as u8);
+                    }
+                    break;
+                }
+                moves.push(tmp_pos as u8);
+            }
+        }
+
+        moves
+    }
+
     // initializes the first board
-    fn init_board() -> [u16; 64] {
-        let board: [u16; 64] = Self::load_fen_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    fn init_board() -> [u8; 64] {
+        // let board: [u8; 64] = Self::load_fen_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+
+        // testing
+        let board: [u8; 64] = Self::load_fen_board("rnb1kbnr/pppppppp/8/8/8/3q4/PPP4P/RNBQKBNR");
 
         //DEBUG
         Self::print_board(board);
@@ -129,24 +344,24 @@ impl Game {
     }
 
     // loads a fen string which represents where all pieces are on the board
-    fn load_fen_board(fen: &str) -> [u16; 64] {
-        let mut board: [u16; 64] = [0; 64];
+    fn load_fen_board(fen: &str) -> [u8; 64] {
+        let mut board: [u8; 64] = [0; 64];
 
-        let mut x: u16 = 0;
-        let mut y: u16 = 7;
-        let mut p: u16 = 0;
+        let mut x: u8 = 0;
+        let mut y: u8 = 0;
+        let mut p: u8 = 0;
 
         for item in fen.chars() {
             if item == '/' {
-                y -= 1;
+                y += 1;
                 x = 0;
             } else if item.is_numeric() {
-                x += item.to_digit(10).unwrap() as u16;
+                x += item.to_digit(10).unwrap() as u8;
             } else {
                 if item.is_uppercase() {
-                    p += BLACK;
-                } else {
                     p += WHITE;
+                } else {
+                    p += BLACK;
                 }
 
                 let role_string = item.to_lowercase().to_string();
@@ -170,7 +385,7 @@ impl Game {
     }
 
     //prints board only for debug
-    fn print_board(board: [u16; 64]) {
+    fn print_board(board: [u8; 64]) {
         let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
         print!("\n");
@@ -191,7 +406,7 @@ impl Game {
 
     // dont understand much here with masking bytes from https://github.com/SebLague/Chess-AI/blob/main/Assets/Scripts/Core/Piece.cs
     // gets role by masking
-    fn get_role(piece: u16) -> u16 {
+    fn get_role(piece: u8) -> u8 {
         piece & 0b00111 // typemask, takes away the two first bytes(which represents the color)
                         //      e.g.
                         //      0b01001 white king
@@ -200,14 +415,14 @@ impl Game {
     }
 
     // gets color by masking
-    fn get_color(piece: u16) -> u16 {
+    fn get_color(piece: u8) -> u8 {
         piece & 0b11000 // colormask
     }
     //----------------------------------------------------------------
 
     // converts position to index in array dont know if needed.
-    fn piece_str_to_int(piece: &str) -> u16 {
-        let mut p: u16 = 0;
+    fn piece_str_to_int(piece: &str) -> u8 {
+        let mut p: u8 = 0;
 
         if piece.chars().nth(0).unwrap().is_uppercase() {
             p += BLACK;
@@ -230,7 +445,7 @@ impl Game {
     }
 
     // converts piece to which role and which color in char, lowercase is white and upper is black
-    fn piece_int_to_str(piece: u16) -> char {
+    fn piece_int_to_str(piece: u8) -> char {
         if Self::get_color(piece) == BLACK {
             return Self::role_int_to_str(piece)
                 .to_uppercase()
@@ -240,7 +455,7 @@ impl Game {
     }
 
     // converts piece to which role it has in char
-    fn role_int_to_str(piece: u16) -> char {
+    fn role_int_to_str(piece: u8) -> char {
         match Self::get_role(piece) {
             KING => 'k',
             QUEEN => 'q',
@@ -265,14 +480,14 @@ impl Game {
     }
 
     // 7 becomes G1
-    fn pos_int_to_string(_position: usize) -> () {
-        // let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    fn pos_int_to_string(_position: u8) -> String {
+        let rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
-        // let mut owned_string: String = (_position / 8).to_string().to_owned();
-        // let borrowed_string: &str = rows[_position % 8];
-        // owned_string.push_str(borrowed_string);
+        let mut file: String = String::from(rows[(_position % 8) as usize].to_string());
+        let rank: char = char::from_digit(8 - (_position / 8) as u32, 10).unwrap();
+        file.push(rank);
 
-        // owned_string
+        file
     }
 }
 
@@ -307,12 +522,6 @@ mod tests {
     use super::Game;
     use super::GameState;
 
-    // check test framework
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-
     // example test
     // check that game state is in progress after initialisation
     #[test]
@@ -324,7 +533,7 @@ mod tests {
         // let _fuck = Game::piece_int_to_str(game.board[(8 * 0) + 3]);
         // print!("{}", _fuck);
 
-        let ok = Game::get_pawn_moves(&game, "E7").unwrap();
+        let ok = game.get_possible_moves("D3").unwrap();
         for i in ok {
             print!("\n");
             print!("a: {} ", i);
