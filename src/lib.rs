@@ -1,12 +1,34 @@
-use std::fmt::Display;
 use std::marker::Copy;
-use std::{char, fmt, string, u64, u8, vec};
+use std::{char, fmt, u64, u8};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
     InProgress,
     Check,
     GameOver,
+}
+
+struct Bitmap {
+    pub val: u64,
+}
+
+impl Bitmap {
+    pub fn new(value: u64) -> Bitmap {
+        Bitmap { val: value }
+    }
+
+    // shift the bitmap to the left by n bits and check if the result is 0
+    pub fn get(&self, position: u8) -> bool {
+        return (self.val >> position) & 1 == 1;
+    }
+
+    pub fn set(&mut self, position: u8) -> () {
+        self.val = self.val | 1 << position;
+    }
+
+    pub fn remove(&mut self, position: u8) -> () {
+        self.val = self.val & !(1 << position);
+    }
 }
 
 // const for pieces and not enums
@@ -30,6 +52,7 @@ pub struct Game {
     /* save board, active colour, ... */
     state: GameState,
     board: [u8; 64],
+    turn: u8,
     //...
 }
 
@@ -40,6 +63,7 @@ impl Game {
             /* initialise board, set active colour to white, ... */
             state: GameState::InProgress,
             board: Self::init_board(),
+            turn: 0,
         }
     }
 
@@ -50,14 +74,39 @@ impl Game {
         if self.state != GameState::InProgress {
             None //TODO:
         } else {
-            // check if move is possible
-            // make the move
-            // return gamestate
-            let tmp = self.get_possible_moves(_from);
-            if tmp.unwrap().contains(&_to.to_string()) {
-                self.board[Self::pos_str_to_int(_to)] = self.board[Self::pos_str_to_int(_from)];
-                self.board[Self::pos_str_to_int(_from)] = 0;
+            if _from.len() == 2 && _to.len() == 2 { // if from and to are valid
+                let piece = self.board[Self::pos_str_to_int(_from)];
+                if piece != 0 && Self::get_color(piece) == self.turn_color() { // if piece is white and its whites turn and piece is not none
+                    let moves = self.get_possible_moves(_from);
+
+                    if moves.is_none() {
+                        return Some(self.state);
+                    } else {
+                        if moves.unwrap().contains(&_to.to_string()) {
+                            // move piece
+                            let from = Self::pos_str_to_int(_from) as u8;
+                            let to = Self::pos_str_to_int(_to) as u8;
+                            self.board = self.do_move(from, to);
+
+                            if self.check_if_checked(Self::get_color(to)) {
+                                self.state = GameState::Check;
+                            }
+
+                            self.turn += 1;
+
+                            Self::print_board(self.board);
+                            println!("turn: {}, total moves {}", self.turn_color(), self.turn);
+                            
+                            return Some(self.state);
+                        } else {
+                            return None;
+                        }
+                    }
+                }
             }
+
+            // check if move is possible
+
             Some(GameState::InProgress)
         }
     }
@@ -84,13 +133,17 @@ impl Game {
     /// new positions of that piece. Don't forget to the rules for check.
     ///
     /// (optional) Don't forget to include en passent and castling.
-    pub fn get_possible_moves(&self, _position: &str) -> Option<Vec<String>> {
+    pub fn get_possible_moves(&mut self, _position: &str) -> Option<Vec<String>> {
         // not a valid pos return None
         if _position.len() != 2 {
             return None;
         } else {
             let pos_int: u8 = Self::pos_str_to_int(_position) as u8;
             let mut moves: Vec<u8> = self.get_possible_moves_int(pos_int);
+            let color = Self::get_color(self.board[pos_int as usize]);
+
+            // check if king is in check
+            moves = self.filter_checked_moves(moves, pos_int);
 
             // Placement
             let mut moves_string: Option<Vec<String>> = Some(self.posvec_int_to_string(moves));
@@ -98,13 +151,32 @@ impl Game {
         }
     }
 
-    fn remove_checks(&self, _position: u8, attacked_poses: Vec<u8>) -> Vec<u8> {
-        let color: u8 = self.board[_position as usize];
-        let opposite_moves: Vec<u8> = self.get_moves_for_color(!color & 0b11000);
+    fn turn_color(&self) -> u8 {
+        if self.turn % 2 == 0 {
+            return 8;
+        } else {
+            return 16;
+        }
+    }
 
-        let moves = Vec::new();
+    // returns a bitmap with all attacking movees
+    fn gen_bitmap_attacked(&self, _color: u8) -> Bitmap {
+        let mut bitmap: Bitmap = Bitmap::new(0);
 
-        moves
+        for i in 0..64 {
+            if Self::get_color(self.board[i]) == _color {
+                // if color is right
+                let moves = self.get_possible_moves_int(i as u8); // get all possible moves
+                for m in moves {
+                    // set all positions that are attacked to 1
+                    bitmap.set(m);
+                    // println!("attacking spot from: {} to: {}", Self::pos_int_to_string(i as u8), Self::pos_int_to_string(m as u8));
+                    // println!("{}", bitmap.val);
+                }
+            }
+        }
+
+        bitmap
     }
 
     fn get_possible_moves_int(&self, _position: u8) -> Vec<u8> {
@@ -141,27 +213,126 @@ impl Game {
         moves
     }
 
+    fn filter_checked_moves(&mut self, _moves: Vec<u8>, _from: u8) -> Vec<u8> {
+        let mut moves: Vec<u8> = Vec::new();
+        let mut board = self.board;
+        let color = Self::get_color(board[_from as usize]);
+        let bitmap = self.gen_bitmap_attacked(color ^ 0b11000);
+
+        // do every move and check if king is attacked
+        for m in _moves {
+            self.board = self.do_move(_from, m);
+
+            //++++++++++++++++++++dasdasdasd
+            print!("\n");
+
+            Self::print_board(board);
+
+            print!("\n");
+            for y in 0..8 {
+                for x in 0..8 {
+                    print!(
+                        "{}{} ",
+                        bitmap.get(y * 8 + x) as u8,
+                        Self::piece_int_to_str(self.board[(y * 8 + x) as usize])
+                    );
+                }
+                print!("\n");
+            }
+            print!("\n");
+            //++++++++++++++++++++dasdasdasd
+
+            if !self.check_if_checked(color) {
+                // when checkifchecked is 0
+                moves.push(m);
+            } else {
+                println!("checked::::::: {}", Self::pos_int_to_string(m));
+            }
+            println!(
+                "fromto{} {}",
+                Self::pos_int_to_string(_from),
+                Self::pos_int_to_string(m)
+            );
+            self.board = board;
+        }
+
+        //++++++++++++++++++++dasdasdasd
+        print!("\n");
+
+        Self::print_board(board);
+
+        print!("\n");
+        for y in 0..8 {
+            for x in 0..8 {
+                print!(
+                    "{}{} ",
+                    bitmap.get(y * 8 + x) as u8,
+                    Self::piece_int_to_str(self.board[(y * 8 + x) as usize])
+                );
+            }
+            print!("\n");
+        }
+        print!("\n");
+        //++++++++++++++++++++dasdasdasd
+
+        moves
+    }
+
+    fn do_move(&self, _from: u8, _to: u8) -> [u8; 64] {
+        let mut tboard = self.board;
+        tboard[_to as usize] = tboard[_from as usize];
+        tboard[_from as usize] = 0;
+
+        tboard
+    }
     /// get all possiblemoves from the attacking side and check if there is a king on any of the moves
     /// if there is a king with attacked color return true
     /// else return false
     /// TODO: redesign
-    fn check_if_checked(&self, _from: u8, _to: u8, attacking_moves: Vec<u8>) -> bool {
-        let attacked = Self::get_color(_from);
-        let attacking = attacked | 0b11000; // inverts color
+    ///
+    fn check_if_checked(&self, _attacked_color: u8) -> bool {
+        let attacking_color = _attacked_color ^ 0b11000; // can be !attacked_color & 0b11000
+                                                         // 01000  10000
+                                                         // 11000  11000
+                                                         // 10000  01000
+        let bitmap = self.gen_bitmap_attacked(attacking_color);
 
-        for item in attacking_moves {
-            let mut clone = self.board.clone();
-            clone[_to as usize] = self.board[_from as usize];
-            clone[_from as usize] = 0;
-
-            let piece: u8 = clone[item as usize];
-            if Self::get_role(piece) == KING && Self::get_color(piece) == attacked {
-                // is checked
-                return true;
+        // println!("attacked color: {}", _attacked_color);
+        // println!("attacking color: {}", attacking_color);
+        // kingpos
+        let mut kingpos = 0;
+        for i in 0..64 {
+            if _attacked_color == Self::get_color(self.board[i])
+                && KING == Self::get_role(self.board[i])
+            {
+                kingpos = i;
+                // println!("Found king");
+                break;
             }
         }
+        println!(
+            "kingpos: {}, color: {}",
+            kingpos,
+            Self::get_color(self.board[kingpos])
+        );
 
-        false
+        let mut kingposbitmap: Bitmap = Bitmap::new(0);
+        kingposbitmap.set(kingpos as u8);
+
+        // println!("kingposbitmap {}", kingposbitmap.val);
+        // println!("bittt {}", bitmap.val);
+        // println!("kingposbitmap & bitmap {}", kingposbitmap.val & bitmap.val);
+        (bitmap.val & kingposbitmap.val) != 0
+
+        //  1110101
+        //  0100000
+        //  0100000
+        //  inte noll true
+
+        //  1100011
+        //  0001000
+        //  0000000
+        //  noll false inte check
     }
 
     fn get_moves_for_color(&self, _color: u8) -> Vec<u8> {
@@ -195,10 +366,7 @@ impl Game {
         for i in 0..8 {
             let destination = _position as i16 + direction[i];
             if destination >= 0 && destination < 64 {
-                if Self::get_color(self.board[destination as usize]) != color
-                    // && self.check_if_checked(_position, destination, opposite_moves.clone()) == false
-                // fix the clone
-                {
+                if Self::get_color(self.board[destination as usize]) != color {
                     moves.push(destination as u8);
                 }
             }
@@ -238,7 +406,9 @@ impl Game {
         let sides: [i16; 2] = [9 * color_mult, 7 * color_mult];
         for i in sides {
             let next_pos = self.board[(_position as i16 + i) as usize];
-            if (Self::get_color(next_pos)) != Self::get_color(self.board[_position as usize]) {
+            if next_pos != 0
+                && (Self::get_color(next_pos)) != Self::get_color(self.board[_position as usize])
+            {
                 moves.push((_position as i16 + i) as u8);
             }
         }
@@ -326,10 +496,10 @@ impl Game {
 
     // initializes the first board
     fn init_board() -> [u8; 64] {
-        // let board: [u8; 64] = Self::load_fen_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        let board: [u8; 64] = Self::load_fen_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
 
         // testing
-        let board: [u8; 64] = Self::load_fen_board("rnb1kbnr/pppppppp/8/8/8/3q4/PPP4P/RNBQKBNR");
+        // let board: [u8; 64] = Self::load_fen_board("rnb1kbnr/pppppppp/8/8/1q6/8/PPPPPPPP/RNBQKBNR");
 
         //DEBUG
         Self::print_board(board);
@@ -526,18 +696,20 @@ mod tests {
     // check that game state is in progress after initialisation
     #[test]
     fn game_in_progress_after_init() {
-        let game = Game::new();
+        let mut game = Game::new();
 
         println!("\n-----------------------");
 
         // let _fuck = Game::piece_int_to_str(game.board[(8 * 0) + 3]);
         // print!("{}", _fuck);
 
-        let ok = game.get_possible_moves("D3").unwrap();
+        let ok = game.get_possible_moves("D2").unwrap();
         for i in ok {
             print!("\n");
             print!("a: {} ", i);
         }
+
+        game.make_move("D2", "D4");
 
         print!("\n");
 
