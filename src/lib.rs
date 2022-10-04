@@ -178,6 +178,11 @@ impl Game {
         }
     }
 
+    pub fn get_piece(&self, _position: &str) -> u8 {
+        let pos_int: u8 = Self::pos_str_to_int(_position) as u8;
+        return self.board[pos_int as usize];
+    }
+
     // returns a bitmap with all attacking movees
     fn gen_bitmap_attacked(&self, _color: u8) -> Bitmap {
         let mut bitmap: Bitmap = Bitmap::new(0);
@@ -588,7 +593,7 @@ impl Game {
 
     // dont understand much here with masking bytes from https://github.com/SebLague/Chess-AI/blob/main/Assets/Scripts/Core/Piece.cs
     // gets role by masking
-    fn get_role(piece: u8) -> u8 {
+    pub fn get_role(piece: u8) -> u8 {
         piece & 0b00111 // typemask, takes away the two first bytes(which represents the color)
                         //      e.g.
                         //      0b01001 white king
@@ -597,7 +602,7 @@ impl Game {
     }
 
     // gets color by masking
-    fn get_color(piece: u8) -> u8 {
+    pub fn get_color(piece: u8) -> u8 {
         piece & 0b11000 // colormask
     }
     //----------------------------------------------------------------
@@ -687,13 +692,6 @@ impl Game {
 /// | R  Kn B  Q  K  B  Kn R  1 |
 /// | A  B  C  D  E  F  G  H
 ///
-impl fmt::Debug for Game {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        /* build board representation string */
-
-        write!(f, "")
-    }
-}
 
 // --------------------------
 // ######### TESTS ##########
@@ -701,8 +699,16 @@ impl fmt::Debug for Game {
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
+
     use super::Game;
     use super::GameState;
+
+    // check if working
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
 
     // example test
     // check that game state is in progress after initialisation
@@ -710,23 +716,32 @@ mod tests {
     fn game_in_progress_after_init() {
         let mut game = Game::new();
 
-        println!("\n-----------------------");
-
-        // let _fuck = Game::piece_int_to_str(game.board[(8 * 0) + 3]);
-        // print!("{}", _fuck);
-
-        let ok = game.get_possible_moves("D2").unwrap();
-        for i in ok {
-            print!("\n");
-            print!("a: {} ", i);
-        }
-
-        game.make_move("D2", "D4");
-
-        print!("\n");
-
-        println!("{:?}", game);
-
         assert_eq!(game.get_game_state(), GameState::InProgress);
+        assert_eq!(game.turn_color(), 8);
+    }
+
+    // check getting moves
+    #[test]
+    fn get_moves() {
+        let mut game = Game::new();
+        let moves = game.get_possible_moves("E2").unwrap();
+
+        assert_eq!(moves, vec!["E3", "E4"]);
+        assert_eq!(moves.len(), 2);
+    }
+
+    //Test if move is done correctly
+    #[test]
+    fn test_move() {
+        let mut game = Game::new();
+
+        game.make_move("E2", "E4");
+
+        assert_eq!(game.get_piece("E4"), 8 + 6);
+    }
+
+    #[test]
+    fn fail_test() {
+        panic!("Fail test");
     }
 }
