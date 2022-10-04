@@ -53,7 +53,7 @@ pub struct Game {
     state: GameState,
     board: [u8; 64],
     turn: u8,
-    //...
+    promotion_to: u8,
 }
 
 impl Game {
@@ -64,15 +64,15 @@ impl Game {
             state: GameState::InProgress,
             board: Self::init_board(),
             turn: 0,
+            promotion_to: 2,
         }
     }
 
     /// If the current game state is `InProgress` and the move is legal,
     /// move a piece and return the resulting state of the game.
-    /// TODO: doesnt check chek
     pub fn make_move(&mut self, _from: &str, _to: &str) -> Option<GameState> {
         if self.state != GameState::InProgress {
-            None //TODO:
+            None
         } else {
             if _from.len() == 2 && _to.len() == 2 { // if from and to are valid
                 let piece = self.board[Self::pos_str_to_int(_from)];
@@ -83,19 +83,30 @@ impl Game {
                         return Some(self.state);
                     } else {
                         if moves.unwrap().contains(&_to.to_string()) {
+                            let color = Self::get_color(piece);
                             // move piece
                             let from = Self::pos_str_to_int(_from) as u8;
                             let to = Self::pos_str_to_int(_to) as u8;
+                            
                             self.board = self.do_move(from, to);
 
-                            if self.check_if_checked(Self::get_color(to)) {
-                                self.state = GameState::Check;
+                            if (to / 8 == 0 && piece == PAWN | BLACK) || (to / 8 == 7 && piece == PAWN | WHITE) {
+                                self.board[to as usize] = self.promotion_to | color; //Promote
                             }
 
+                            if self.check_if_checked(color ^ 0b11000) {
+                                self.state = GameState::Check;
+                            } else if self.check_if_checkmate(color ^ 0b11000) {
+                                self.state = GameState::GameOver;
+                            }
+                            
+                            // end of turn
                             self.turn += 1;
 
+                            //Debug++++++++++++++
                             Self::print_board(self.board);
                             println!("turn: {}, total moves {}", self.turn_color(), self.turn);
+                            //+++++++++++++++
                             
                             return Some(self.state);
                         } else {
@@ -112,9 +123,17 @@ impl Game {
     }
 
     /// Set the piece type that a pawn becomes following a promotion.
-    /// TODO: just minus 6(pawn value) right now and then add the new piece value(for queen 2)
     pub fn set_promotion(&mut self, _piece: &str) -> () {
-        let piece_int: u8 = self::Game::piece_str_to_int(_piece);
+        let piece = _piece.to_lowercase();
+        self.promotion_to = match _piece {
+            "bishop" => BISHOP,
+            "b" => BISHOP,
+            "knight" => KNIGHT,
+            "n" => KNIGHT,
+            "rook" => ROOK,
+            "r" => ROOK,
+            _ => QUEEN,
+        };
     }
 
     /// Get the current game state.
@@ -146,12 +165,12 @@ impl Game {
             moves = self.filter_checked_moves(moves, pos_int);
 
             // Placement
-            let mut moves_string: Option<Vec<String>> = Some(self.posvec_int_to_string(moves));
+            let moves_string: Option<Vec<String>> = Some(self.posvec_int_to_string(moves));
             return moves_string;
         }
     }
 
-    fn turn_color(&self) -> u8 {
+    pub fn turn_color(&self) -> u8 {
         if self.turn % 2 == 0 {
             return 8;
         } else {
@@ -223,25 +242,6 @@ impl Game {
         for m in _moves {
             self.board = self.do_move(_from, m);
 
-            //++++++++++++++++++++dasdasdasd
-            print!("\n");
-
-            Self::print_board(board);
-
-            print!("\n");
-            for y in 0..8 {
-                for x in 0..8 {
-                    print!(
-                        "{}{} ",
-                        bitmap.get(y * 8 + x) as u8,
-                        Self::piece_int_to_str(self.board[(y * 8 + x) as usize])
-                    );
-                }
-                print!("\n");
-            }
-            print!("\n");
-            //++++++++++++++++++++dasdasdasd
-
             if !self.check_if_checked(color) {
                 // when checkifchecked is 0
                 moves.push(m);
@@ -257,22 +257,22 @@ impl Game {
         }
 
         //++++++++++++++++++++dasdasdasd
-        print!("\n");
+        // print!("\n");
 
-        Self::print_board(board);
+        // Self::print_board(board);
 
-        print!("\n");
-        for y in 0..8 {
-            for x in 0..8 {
-                print!(
-                    "{}{} ",
-                    bitmap.get(y * 8 + x) as u8,
-                    Self::piece_int_to_str(self.board[(y * 8 + x) as usize])
-                );
-            }
-            print!("\n");
-        }
-        print!("\n");
+        // print!("\n");
+        // for y in 0..8 {
+        //     for x in 0..8 {
+        //         print!(
+        //             "{}{} ",
+        //             bitmap.get(y * 8 + x) as u8,
+        //             Self::piece_int_to_str(self.board[(y * 8 + x) as usize])
+        //         );
+        //     }
+        //     print!("\n");
+        // }
+        // print!("\n");
         //++++++++++++++++++++dasdasdasd
 
         moves
@@ -285,11 +285,21 @@ impl Game {
 
         tboard
     }
+
+    pub fn check_if_checkmate(&self, _color: u8) -> bool { // checking if _color is checkmated (so opposite color wins)
+        let mut moves : Vec<u8> = Vec::new();
+        for i in 0..64 {
+            if Self::get_color(self.board[i]) == _color {
+                // if color is right
+                moves.append(&mut self.get_possible_moves_int(i as u8)); // get all possible moves
+            }
+        }
+
+        moves.is_empty()
+    }
     /// get all possiblemoves from the attacking side and check if there is a king on any of the moves
     /// if there is a king with attacked color return true
     /// else return false
-    /// TODO: redesign
-    ///
     fn check_if_checked(&self, _attacked_color: u8) -> bool {
         let attacking_color = _attacked_color ^ 0b11000; // can be !attacked_color & 0b11000
                                                          // 01000  10000
@@ -398,9 +408,11 @@ impl Game {
         let mut moves: Vec<u8> = Vec::new();
 
         let mut color_mult: i16 = 1;
+        let mut last_row: u8 = 0;
 
         if Self::get_color(self.board[_position as usize]) == WHITE {
             color_mult = -1;
+            last_row = 7;
         }
 
         let sides: [i16; 2] = [9 * color_mult, 7 * color_mult];
