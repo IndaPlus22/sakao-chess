@@ -1,5 +1,7 @@
 # sakao-chess
 
+This chess engine does not have draw, castling, en passant
+
 | **Function** | **Description** |
 |--------------|-----------------|
 | `pub fn new() -> Game` | Initialises a new board with pieces. |
@@ -18,12 +20,12 @@ Program also exports an enumerators `GameState` with the values:
 - `GameOver`, 
 
 Program has consts for color and role of piece
-`pub const NONE: u8 = 0`
-`pub const KING: u8 = 1`
-`pub const QUEEN: u8 = 2`
-`pub const BISHOP: u8 = 3`
-`pub const KNIGHT: u8 = 4`
-`pub const ROOK: u8 = 5`
-`pub const PAWN: u8 = 6`
-`pub const WHITE: u8 = 8`
-`pub const BLACK: u8 = 16`
+- `pub const NONE: u8 = 0`
+- `pub const KING: u8 = 1`
+- `pub const QUEEN: u8 = 2`
+- `pub const BISHOP: u8 = 3`
+- `pub const KNIGHT: u8 = 4`
+- `pub const ROOK: u8 = 5`
+- `pub const PAWN: u8 = 6`
+- `pub const WHITE: u8 = 8`
+- `pub const BLACK: u8 = 16`
