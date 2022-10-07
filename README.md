@@ -14,7 +14,6 @@ This chess engine does not have draw, castling, en passant
 | `pub fn get_piece(&self, _position: &str) -> u8` | returns piece as color + role , so black king is 16(BLACK) + 1(KING) |
 | `pub fn get_color(piece: u8) -> u8` | returns only color of the piece integer |
 | `pub fn get_role(piece: u8) -> u8` | returns only role of the piece integer |
-| `pub fn load_fen_board(fen: &str) -> [u8; 64]` | can be used to turn fen string to [u8; 64] with the pieces (do not use if not understandable) |
 
 Positions are given as strings with the format `"<file><rank>"`.
 

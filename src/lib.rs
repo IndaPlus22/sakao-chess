@@ -296,7 +296,7 @@ impl Game {
         tboard
     }
 
-    pub fn check_if_checkmate(&mut self, _color: u8) -> bool {
+    fn check_if_checkmate(&mut self, _color: u8) -> bool {
         // checking if _color is checkmated (so opposite color wins)
         let mut moves: Vec<String> = Vec::new();
         for i in 0..64 {
