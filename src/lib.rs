@@ -71,12 +71,15 @@ impl Game {
     /// If the current game state is `InProgress` and the move is legal,
     /// move a piece and return the resulting state of the game.
     pub fn make_move(&mut self, _from: &str, _to: &str) -> Option<GameState> {
-        if self.state != GameState::InProgress {
+        if self.state == GameState::GameOver {
+            // its gameover
             None
         } else {
-            if _from.len() == 2 && _to.len() == 2 { // if from and to are valid
+            if _from.len() == 2 && _to.len() == 2 {
+                // if from and to are valid
                 let piece = self.board[Self::pos_str_to_int(_from)];
-                if piece != 0 && Self::get_color(piece) == self.turn_color() { // if piece is white and its whites turn and piece is not none
+                if piece != 0 && Self::get_color(piece) == self.turn_color() {
+                    // if piece is white and its whites turn and piece is not none
                     let moves = self.get_possible_moves(_from);
 
                     if moves.is_none() {
@@ -87,19 +90,21 @@ impl Game {
                             // move piece
                             let from = Self::pos_str_to_int(_from) as u8;
                             let to = Self::pos_str_to_int(_to) as u8;
-                            
+
                             self.board = self.do_move(from, to);
 
-                            if (to / 8 == 0 && piece == PAWN | BLACK) || (to / 8 == 7 && piece == PAWN | WHITE) {
-                                self.board[to as usize] = self.promotion_to | color; //Promote
+                            if (to / 8 == 0 && piece == PAWN | BLACK)
+                                || (to / 8 == 7 && piece == PAWN | WHITE)
+                            {
+                                self.board[to as usize] = self.promotion_to | color;
+                                //Promote
+                            }
+                            if self.check_if_checkmate(color ^ 0b11000) {
+                                self.state = GameState::GameOver;
+                            } else if self.check_if_checked(color ^ 0b11000) {
+                                self.state = GameState::Check;
                             }
 
-                            if self.check_if_checked(color ^ 0b11000) {
-                                self.state = GameState::Check;
-                            } else if self.check_if_checkmate(color ^ 0b11000) {
-                                self.state = GameState::GameOver;
-                            }
-                            
                             // end of turn
                             self.turn += 1;
 
@@ -107,7 +112,7 @@ impl Game {
                             Self::print_board(self.board);
                             println!("turn: {}, total moves {}", self.turn_color(), self.turn);
                             //+++++++++++++++
-                            
+
                             return Some(self.state);
                         } else {
                             return None;
@@ -291,14 +296,20 @@ impl Game {
         tboard
     }
 
-    pub fn check_if_checkmate(&self, _color: u8) -> bool { // checking if _color is checkmated (so opposite color wins)
-        let mut moves : Vec<u8> = Vec::new();
+    pub fn check_if_checkmate(&mut self, _color: u8) -> bool {
+        // checking if _color is checkmated (so opposite color wins)
+        let mut moves: Vec<String> = Vec::new();
         for i in 0..64 {
             if Self::get_color(self.board[i]) == _color {
                 // if color is right
-                moves.append(&mut self.get_possible_moves_int(i as u8)); // get all possible moves
+
+                let mut tmp = self.get_possible_moves(&Self::pos_int_to_string(i as u8)).expect("fuck this");
+                moves.append(&mut tmp);
+                // get all possible moves
             }
         }
+
+        println!("hahahahahaha: {} {:?}", _color, moves);
 
         moves.is_empty()
     }
@@ -531,7 +542,7 @@ impl Game {
     }
 
     // loads a fen string which represents where all pieces are on the board
-    fn load_fen_board(fen: &str) -> [u8; 64] {
+    pub fn load_fen_board(fen: &str) -> [u8; 64] {
         let mut board: [u8; 64] = [0; 64];
 
         let mut x: u8 = 0;
@@ -720,14 +731,102 @@ mod tests {
         assert_eq!(game.turn_color(), 8);
     }
 
-    // check getting moves
+    // test if gameover
     #[test]
-    fn get_moves() {
+    fn gamestate_gameover() {
         let mut game = Game::new();
-        let moves = game.get_possible_moves("E2").unwrap();
 
-        assert_eq!(moves, vec!["E3", "E4"]);
-        assert_eq!(moves.len(), 2);
+        // moves for fast checkmate :P
+        game.make_move("E2", "E4");
+        game.make_move("F7", "F5");
+        game.make_move("A2", "A3");
+        game.make_move("G7", "G5");
+        game.make_move("D1", "H5");
+
+        assert_eq!(game.get_game_state(), GameState::GameOver);
+    }
+
+    #[test]
+    fn gamestate_check() {
+        let mut game: Game = Game::new();
+
+        game.make_move("E2", "E4");
+        game.make_move("F7", "F5");
+        game.make_move("D1", "H5");
+
+        assert_eq!(game.get_game_state(), GameState::Check);
+    }
+
+    // check getting moves for pawns
+    #[test]
+    fn get_pawn_moves() {
+        let mut game1 = Game::new();
+        let moves1 = game1.get_possible_moves("E2").unwrap();
+
+        assert_eq!(moves1, vec!["E3", "E4"]);
+        assert_eq!(moves1.len(), 2);
+
+        let mut game2: Game = Game::new();
+        game2.board = Game::load_fen_board("rnbqkbnr/ppp3pp/8/3ppp2/4P3/8/PPPP1PPP/R3KBN1");
+        let moves2 = game2.get_possible_moves("E4").unwrap();
+
+        assert_eq!(moves2, vec!["D5", "F5"]);
+        assert_eq!(moves2.len(), 2);
+    }
+
+    // check getting moves for queen
+    #[test]
+    fn get_queen_moves() {
+        let mut game = Game::new();
+        game.board = Game::load_fen_board("rnbqkbnr/pppppppp/8/8/3Q4/8/PPPPPPPP/RNB1KBNR");
+        let moves = game.get_possible_moves("D4").unwrap();
+
+        assert_eq!(moves, vec!["E5", "F6", "G7", "E3", "C3", "C5", "B6", "A7", "D5", "D6", "D7", "E4", "F4", "G4", "H4", "D3", "C4", "B4", "A4"]);
+        assert_eq!(moves.len(), 19);
+    }
+
+    // check for rook moves
+    #[test]
+    fn get_rook_moves() {
+        let mut game = Game::new();
+        game.board = Game::load_fen_board("rnbqkbnr/pppppppp/8/8/3R4/8/PPPPPPPP/RNB1KBN1");
+        let moves = game.get_possible_moves("D4").unwrap();
+
+        assert_eq!(moves, vec!["D5", "D6", "D7", "E4", "F4", "G4", "H4", "D3", "C4", "B4", "A4"]);
+        assert_eq!(moves.len(), 11);
+    }
+
+    // checks for bishop moves
+    #[test]
+    fn get_bishop_moves() {
+        let mut game = Game::new();
+        game.board = Game::load_fen_board("rnbqkbnr/pppppppp/8/8/3B4/8/PPPPPPPP/RN2KBN1");
+        let moves = game.get_possible_moves("D4").unwrap();
+
+        assert_eq!(moves, vec!["E5", "F6", "G7", "E3", "C3", "C5", "B6", "A7"]);
+        assert_eq!(moves.len(), 8);
+    }
+
+    // test knight moves
+    #[test]
+    fn get_knight_moves() {
+        let mut game = Game::new();
+        game.board = Game::load_fen_board("rnbqkbnr/pppppppp/8/8/8/3N4/PPPPPPPP/R3KBN1");
+        let moves = game.get_possible_moves("D3").unwrap();
+
+        assert_eq!(moves, vec!["E5", "F4", "C1", "B4", "C5"]);
+        assert_eq!(moves.len(), 5);
+    }
+
+    // test king moves
+    #[test]
+    fn get_king_moves() {
+        let mut game = Game::new();
+        game.board = Game::load_fen_board("rnbqkbnr/ppppp1pp/5p2/5K2/8/8/PPPPPPPP/R4BN1");
+        let moves = game.get_possible_moves("F5").unwrap();
+
+        assert_eq!(moves, vec!["F4", "G4", "E4"]);
+        assert_eq!(moves.len(), 3);
     }
 
     //Test if move is done correctly
@@ -741,6 +840,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn fail_test() {
         panic!("Fail test");
     }
